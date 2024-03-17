@@ -3,14 +3,17 @@
 
 extern crate alloc;
 use core::mem::MaybeUninit;
-use esp32c3_hal::{clock::ClockControl, peripherals::Peripherals, prelude::*, Delay};
 use esp_backtrace as _;
+use esp_hal::{
+    clock::ClockControl,
+    gpio,
+    peripherals::Peripherals,
+    prelude::*,
+    spi::{master::Spi, SpiMode},
+    IO,
+};
 use log::info;
-use esp_println::println;
-
-use esp_wifi::{initialize, EspWifiInitFor};
-
-use esp32c3_hal::{systimer::SystemTimer, Rng};
+use max7219::MAX7219;
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
 
@@ -22,33 +25,30 @@ fn init_heap() {
         ALLOCATOR.init(HEAP.as_mut_ptr() as *mut u8, HEAP_SIZE);
     }
 }
+
 #[entry]
 fn main() -> ! {
     init_heap();
     let peripherals = Peripherals::take();
     let system = peripherals.SYSTEM.split();
+    let clocks = ClockControl::boot_defaults(system.clock_control).freeze();
 
-    let clocks = ClockControl::max(system.clock_control).freeze();
-    let mut delay = Delay::new(&clocks);
+    let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
+    let (sclk, miso, mosi) = (io.pins.gpio0, io.pins.gpio2, io.pins.gpio4);
 
-    // setup logger
-    // To change the log_level change the env section in .cargo/config.toml
-    // or remove it and set ESP_LOGLEVEL manually before running cargo run
-    // this requires a clean rebuild because of https://github.com/rust-lang/cargo/issues/10358
+    let spi_bus = Spi::new(peripherals.SPI2, 1000u32.kHz(), SpiMode::Mode0, &clocks).with_pins(
+        Some(sclk),
+        Some(miso),
+        Some(mosi),
+        gpio::NO_PIN,
+    );
+    let mut max7219 = MAX7219::from_spi(1, spi_bus).unwrap();
+    max7219.power_on().unwrap();
+    max7219.write_str(0, b"pls help", 0b00100000).unwrap();
+    max7219.set_intensity(0, 0x1).unwrap();
+
     esp_println::logger::init_logger_from_env();
-    log::info!("Logger is setup");
-    println!("Hello world!");
-    let timer = SystemTimer::new(peripherals.SYSTIMER).alarm0;
-    let _init = initialize(
-        EspWifiInitFor::Wifi,
-        timer,
-        Rng::new(peripherals.RNG),
-        system.radio_clock_control,
-        &clocks,
-    )
-    .unwrap();
-    loop {
-        info!("艰苦朴素 求真务实");
-        delay.delay_ms(500u32);
-    }
+    info!("Logger is setup");
+
+    loop {}
 }
