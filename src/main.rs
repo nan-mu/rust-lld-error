@@ -23,9 +23,13 @@ fn main() -> ! {
     max7219.power_on().unwrap();
 
     loop {
-        max7219.write_str(0, b"       1", 0b00010000).unwrap();
-        delay.delay_ms(1000u32);
-        max7219.write_str(0, b"       -", 0b00010000).unwrap();
-        delay.delay_ms(1000u32);
+        max7219.write_str(0, b"!       ", 0b11111111).unwrap();
+        delay.delay_ms(100u32);
+        max7219.write_str(0, b" !      ", 0b11111111).unwrap();
+        delay.delay_ms(100u32);
+        max7219.write_str(0, b"  !     ", 0b1111111).unwrap();
+        delay.delay_ms(100u32);
+        max7219.write_str(0, b"   !    ", 0b11111111).unwrap();
+        delay.delay_ms(100u32);
     }
 }
